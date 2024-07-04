@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paint Application</title>
+    <style>
+        #canvas {
+            border: 1px solid black;
+            position: relative;
+        }
+        #brush-preview {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            border: 1px solid black;
+            width: 200px;
+            height: 150px;
+        }
+        #save-button {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas" width="800" height="600"></canvas>
+    <img id="brush-preview" src="" alt="Brush Preview">
+    <button id="save-button">Сохранить</button>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.min.js"></script>
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const brushPreview = document.getElementById('brush-preview');
+        const saveButton = document.getElementById('save-button');
+        const socket = io();
+
+        let drawing = false;
+
+        function startDrawing(event) {
+            drawing = true;
+            draw(event);
+        }
+
+        function endDrawing() {
+            drawing = false;
+            ctx.beginPath();
+        }
+
+        function draw(event) {
+            if (!drawing) return;
+            ctx.lineWidth = 5;
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = 'black';
+
+            const rect = canvas.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+
+            ctx.lineTo(x, y);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+        }
+
+        function handleTouch(event) {
+            const touch = event.touches[0];
+            const mouseEvent = new MouseEvent(event.type, {
+                clientX: touch.clientX,
+                clientY: touch.clientY
+            });
+            canvas.dispatchEvent(mouseEvent);
+        }
+
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('mouseup', endDrawing);
+        canvas.addEventListener('mousemove', draw);
+
+        canvas.addEventListener('touchstart', (event) => {
+            event.preventDefault();
+            handleTouch(event);
+            startDrawing(event);
+        });
+        canvas.addEventListener('touchend', (event) => {
+            event.preventDefault();
+            endDrawing(event);
+        });
+        canvas.addEventListener('touchmove', (event) => {
+            event.preventDefault();
+            handleTouch(event);
+            draw(event);
+        });
+
+        // SocketIO for receiving brush preview image
+        socket.on('brush_preview', (data) => {
+            brushPreview.src = data.image;
+        });
+
+        // Handle finger position for controlling the brush
+        socket.on('finger_position', (data) => {
+            const x = data.x;
+            const y = data.y;
+            moveBrushTo(x, y);
+        });
+
+        function moveBrushTo(x, y) {
+            // Update brush position on canvas
+            brushPreview.style.left = (x - 50) + 'px';  // Adjusting for brush preview size
+            brushPreview.style.top = (y - 50) + 'px';
+        }
+
+        // Save canvas as image
+        saveButton.addEventListener('click', () => {
+            const dataURL = canvas.toDataURL('image/png');
+            const link = document.createElement('a');
+            link.href = dataURL;
+            link.download = 'drawing.png';
+            link.click();
+        });
+    </script>
+</body>
+</html>
